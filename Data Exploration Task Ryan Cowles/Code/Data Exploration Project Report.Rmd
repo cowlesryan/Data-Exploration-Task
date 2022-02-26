@@ -1,0 +1,57 @@
+---
+title: "Data Exploration Project Report"
+author: "Ryan Cowles"
+date: "2/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(purrr)
+library(lubridate)
+library(vtable)
+library(car)
+library(jtools)
+library(fixest)
+library(wooldridge)
+library(stringr)
+library(vtable)
+library(plm)
+library(dagitty)
+
+cleaned_data_final1 <- read.csv(file = "../Data/cleaned_data_final.csv")
+```
+Introduction:
+
+The primary aim of this analysis is to investigate the relationship between the release of the College Scorecard and changing interest in high earning relative to low earning Colleges and Universities that predominantly grant bachelor’s degrees. 
+
+Methodology:
+
+Throughout this analysis high earning Colleges will be defined as those whose median income of graduates after ten years is greater than the median of median income of graduates after 10 years among all Universities that predominantly grant bachelor’s degrees. To be more precise, any College that has a median graduate income after ten years greater than 40,900 dollars is considered a high earner and any College with a median graduate income less than 40,900 is a low earner. This definition is intuitive while simultaneously maximizing the number of observations available for use in this analysis. This independent variable is referred to as earnings in the dataset.
+
+The dependent variable is search indexes by week for various search terms linked to different universities. As per the instructions any two universities that had the exact same name were dropped from the dataset. The indexes were then standardized by keyword and then the mean of the standardized keyword indexes grouped by week and school name stands to represent interest for a school in a given week. Dates in the dataset range from 04/07/2013 to 03/20/2016. To the ensure the panel data remained balanced only dates shared between all colleges were included. You can see a plot of all data points in figure 1 below.
+
+```{r}
+ggplot(data = cleaned_data_final1, aes(y = index_std_mean, x = median_earnings_10, col = earnings)) +
+  geom_point() +
+  geom_hline(yintercept = 0) 
+```
+
+To adequately assess the impact of the college scorecard a binary variable was created to represent data points for which the College Scorecard was available to the public. The college scorecard was released in early September 2015. Consequently, any observations after September 2015 have the scorecard_available variable set equal to true. In order to adequately assess the impact of the College Scorecard on interest in high- and low-earning colleges a regression of the standardized indexes on the interaction of the Scorecard’s release and the earning status of college graduates after ten years was carried out. 
+
+Now that a model has been specified it is important to discuss controls. The main variables likely to bias our model if left in the error term are college state, locale (i.e. city, large city, rural, etc…), renown of college, and average household income of students at a given college. The state in which you attend college likely increase the likelihood you work in said state and certain states have higher per capita income than others. Moreover, state plays a significant role in the preferences of potential students and will be correlated with search indexes (the same applies for locale with rural areas often having lower per capita incomes than more urban areas). The college scorecard dataset contains information on the state and locale of each college however we are unable to directly observe renown and average household income of students. Renown likely impacts interest in a given school directly while also being related to income after graduation through variables such as average SAT score which then influence income through student intelligence. Thus, we can control for the path linking median income after graduation to renown by controlling for SAT average. Furthermore, we can control for the average household income of students by controlling for the average annual cost of attendance since average household income of students impacts income after graduation directly and is related to interest through average cost of attendance (colleges with higher average student household incomes will have fewer students eligible for financial aid and will therefore have higher average costs of attendance). For my analysis both SAT average and average annual cost of attendance were split into binary variables. Those schools with high SAT averages are any that have an average SAT score above the median of average SAT scores across colleges. The same also applies for high as compared to low average annual costs of attendance. The percent of degrees awarded in different fields are also variables that could lead to bias if not brought into the model. 
+
+Results:
+```{r}
+model <- lm(index_std_mean ~ earnings*scorecard_available + STABBR + factor(LOCALE) + scorecard_available*sat +  scorecard_available*cost + PCIP01+	PCIP03+	PCIP04+	PCIP05+	PCIP09+	PCIP10+	PCIP11+	PCIP13+	PCIP14+	PCIP15+	
+PCIP16+	PCIP19+	PCIP22+	PCIP23+	PCIP24+	PCIP25+	PCIP26+	PCIP27+	PCIP29+	PCIP30+	PCIP31+	
+PCIP38+	PCIP39+	PCIP40+	PCIP41+	PCIP42+	PCIP43+	PCIP44+	PCIP45+	PCIP50+	PCIP51+	PCIP52+	PCIP54, data = cleaned_data_final1)
+residualPlot(model)
+export_summs(model, coefs = c("(Intercept)", "earningslow", "scorecard_availableTRUE", "satlow.sat", "costlow.cost", "earningslow:scorecard_availableTRUE",  "scorecard_availableTRUE:satlow.sat",  "scorecard_availableTRUE:costlow.cost"))
+```
+The model selected for this analysis is as seen above. Based upon the regression the release of the College Scorecard is correlated with a decrease in standardized google search indexes for high earning colleges by 0.19, while for low earning colleges google search indexes fell by about 0.16 holding state, locale, SAT average, average annual cost, and percent of degrees awarded in differing fields constant. Note that for the difference in indexes between high and low earning colleges prior to the release of the scorecard we fail to reject the null hypothesis that there is no difference between the two groups. The model also interacts the release of the scorecard with both SAT average and average annual cost, showing the release of the scorecard is correlated with a decrease in the standardized search indexes for schools with a low SAT average by 0.07 and an increase in the standardized index for low average annual cost schools by roughly 0.03 (both are relationships one would somewhat expect to see).
+
+Conclusion: 
+
+The results of the above regression suggest more broadly that, following the release of the college scorecard, interest in high earning colleges fell by more than did interest in low earning colleges. One explanation for the general decline in the standardized google search indexes of all colleges is that the College Scorecard centralized a significant amount of information that initially required multiple google searches of different schools to find. Thus, someone interested in a set of colleges can, instead of googling all of them, google the College Scorecard, narrow down their options, and then google only the few schools they want to research further. So, we may not necessarily be seeing a general fall in interest for colleges but an increase in the efficiency of the college search process (requires people fewer searches to find what they want). This however does not explain the greater fall in the standardized indexes for high earning colleges. It is possible high earning schools, prior to the release of the College Scorecard, were already more well know than lower earning colleges. Consequently, the scorecard served to spotlight many unknown low earning schools while, simultaneously, the plethora of detail regarding college characteristics on the scorecard made individuals more willing to overlook lower median graduate incomes.
